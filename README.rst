@@ -1,12 +1,21 @@
 我的修改
 ========
+
+鉴于Quantopian已经倒闭，不再维护Alphalens，很有必要fork一份，自己修复后续bugs和做一些新的特性开发。
+
+目前，已经做出的修改和增强：
+
 1、修复了bug：['Index' object has no attribute 'get_values ](https://github.com/quantopian/alphalens/issues/379)
 
-2、输出plot到当前目录的debug目录，之前作者是plt.show()出来，图片有些过度留白，这个问题依然在
+2、不知为何py3.7下，plot.show()出来的结果完全布局乱掉，而且，我本身也不喜欢这种弹出框，因此改为了直接输出到当前debug目录中，
+，之前作者是plt.show()出来的图片有些过度留白，这个问题依然存在，暂时不修复了。
 
 安装
 -------
-`pip install git+https://github.com/piginzoo/alphalens.git`
+
+.. code:: shell
+
+    pip install git+https://github.com/piginzoo/alphalens.git
 
 Alphalens
 =========
