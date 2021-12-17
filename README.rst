@@ -1,5 +1,12 @@
-.. image:: https://media.quantopian.com/logos/open_source/alphalens-logo-03.png
-    :align: center
+我的修改
+========
+1、修复了bug：['Index' object has no attribute 'get_values ](https://github.com/quantopian/alphalens/issues/379)
+
+2、输出plot到当前目录的debug目录，之前作者是plt.show()出来，图片有些过度留白，这个问题依然在
+
+安装
+-------
+`pip install git+https://github.com/piginzoo/alphalens.git`
 
 Alphalens
 =========

@@ -30,7 +30,6 @@ from . import performance as perf
 
 DECIMAL_TO_BPS = 10000
 
-
 def customize(func):
     """
     Decorator to set plotting context and axes style during function call.

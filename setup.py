@@ -1,7 +1,9 @@
 #!/usr/bin/env python
-from setuptools import setup, find_packages
-import versioneer
 import sys
+
+from setuptools import setup, find_packages
+
+import versioneer
 
 long_description = ''
 
@@ -34,9 +36,9 @@ if __name__ == "__main__":
         name='alphalens',
         version=versioneer.get_version(),
         cmdclass=versioneer.get_cmdclass(),
-        description='Performance analysis of predictive (alpha) stock factors',
-        author='Quantopian Inc.',
-        author_email='opensource@quantopian.com',
+        description='Performance analysis of predictive (alpha) stock factors, clone from quantopian, modified by piginzoo',
+        author='piginzoo',
+        author_email='piginzoo@gmail.com',
         packages=find_packages(include='alphalens.*'),
         package_data={
             'alphalens': ['examples/*'],
@@ -56,7 +58,7 @@ if __name__ == "__main__":
             'Topic :: Office/Business :: Financial',
             'Topic :: Scientific/Engineering :: Information Analysis',
         ],
-        url='https://github.com/quantopian/alphalens',
+        url='https://github.com/piginzoo/alphalens',
         install_requires=install_reqs,
         extras_require=extra_reqs,
     )

@@ -13,14 +13,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import sys
+import warnings
+
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import pandas as pd
-import warnings
 
-from . import plotting
 from . import performance as perf
+from . import plotting
 from . import utils
+
+
+def plot_image(no=None):
+    caller_name = sys._getframe(1).f_code.co_name
+
+    if not os.path.exists("debug"): os.mkdir("debug")
+    if no:
+        plt.savefig("debug/{}_{}.jpg".format(caller_name, no))
+    else:
+        plt.savefig("debug/{}.jpg".format(caller_name))
 
 
 class GridFigure(object):
@@ -60,7 +73,7 @@ class GridFigure(object):
 
 @plotting.customize
 def create_summary_tear_sheet(
-    factor_data, long_short=True, group_neutral=False
+        factor_data, long_short=True, group_neutral=False
 ):
     """
     Creates a small summary tear sheet with returns, information, and turnover
@@ -171,13 +184,14 @@ def create_summary_tear_sheet(
 
     plotting.plot_turnover_table(autocorrelation, quantile_turnover)
 
-    plt.show()
+    # plt.show()
+    plot_image()
     gf.close()
 
 
 @plotting.customize
 def create_returns_tear_sheet(
-    factor_data, long_short=True, group_neutral=False, by_group=False
+        factor_data, long_short=True, group_neutral=False, by_group=False
 ):
     """
     Creates a tear sheet for returns analysis of a factor.
@@ -279,10 +293,10 @@ def create_returns_tear_sheet(
     # returns are provided.
     if "1D" in factor_returns:
         title = (
-            "Factor Weighted "
-            + ("Group Neutral " if group_neutral else "")
-            + ("Long/Short " if long_short else "")
-            + "Portfolio Cumulative Return (1D Period)"
+                "Factor Weighted "
+                + ("Group Neutral " if group_neutral else "")
+                + ("Long/Short " if long_short else "")
+                + "Portfolio Cumulative Return (1D Period)"
         )
 
         plotting.plot_cumulative_returns(
@@ -303,7 +317,8 @@ def create_returns_tear_sheet(
         ax=ax_mean_quantile_returns_spread_ts,
     )
 
-    plt.show()
+    # plt.show()
+    plot_image()
     gf.close()
 
     if by_group:
@@ -340,13 +355,14 @@ def create_returns_tear_sheet(
             ylim_percentiles=(5, 95),
             ax=ax_quantile_returns_bar_by_group,
         )
-        plt.show()
+        # plt.show()
+        plot_image("group")
         gf.close()
 
 
 @plotting.customize
 def create_information_tear_sheet(
-    factor_data, group_neutral=False, by_group=False
+        factor_data, group_neutral=False, by_group=False
 ):
     """
     Creates a tear sheet for information analysis of a factor.
@@ -383,7 +399,6 @@ def create_information_tear_sheet(
     plotting.plot_ic_qq(ic, ax=ax_ic_hqq[1::2])
 
     if not by_group:
-
         mean_monthly_ic = perf.mean_information_coefficient(
             factor_data,
             group_adjust=group_neutral,
@@ -402,7 +417,8 @@ def create_information_tear_sheet(
 
         plotting.plot_ic_by_group(mean_group_ic, ax=gf.next_row())
 
-    plt.show()
+    #plt.show()
+    plot_image()
     gf.close()
 
 
@@ -431,7 +447,7 @@ def create_turnover_tear_sheet(factor_data, turnover_periods=None):
     if turnover_periods is None:
         input_periods = utils.get_forward_returns_columns(
             factor_data.columns, require_exact_day_multiple=True,
-        ).get_values()
+        ).to_numpy()  # https://github.com/quantopian/alphalens/issues/379 bugfix by piginzoo,2021.12.17
         turnover_periods = utils.timedelta_strings_to_integers(input_periods)
     else:
         turnover_periods = utils.timedelta_strings_to_integers(
@@ -481,7 +497,8 @@ def create_turnover_tear_sheet(factor_data, turnover_periods=None):
             autocorrelation[period], period=period, ax=gf.next_row()
         )
 
-    plt.show()
+    # plt.show()
+    plot_image()
     gf.close()
 
 
@@ -599,7 +616,8 @@ def create_event_returns_tear_sheet(factor_data,
             ax=ax_avg_cumulative_returns_by_q,
         )
 
-    plt.show()
+    # plt.show()
+    plot_image()
     gf.close()
 
     if by_group:
@@ -628,7 +646,8 @@ def create_event_returns_tear_sheet(factor_data,
                 ax=gf.next_cell(),
             )
 
-        plt.show()
+        # plt.show()
+        plot_image("group")
         gf.close()
 
 
@@ -671,11 +690,11 @@ def create_event_study_tear_sheet(factor_data,
     plotting.plot_events_distribution(
         events=factor_data["factor"], num_bars=n_bars, ax=gf.next_row()
     )
-    plt.show()
+    # plt.show()
+    plot_image()
     gf.close()
 
     if returns is not None and avgretplot is not None:
-
         create_event_returns_tear_sheet(
             factor_data=factor_data,
             returns=returns,
@@ -728,5 +747,6 @@ def create_event_study_tear_sheet(factor_data,
             UserWarning,
         )
 
-    plt.show()
+    # plt.show()
+    plot_image("detail")
     gf.close()
