@@ -204,9 +204,9 @@ def create_returns_tear_sheet(
         each period, the factor quantile/bin that factor value belongs to,
         and (optionally) the group the asset belongs to.
         - See full explanation in utils.get_clean_factor_and_forward_returns
-    long_short : bool
+    long_short : bool # long多，short空
         Should this computation happen on a long short portfolio? if so, then
-        mean quantile returns will be demeaned across the factor universe.
+        mean quantile returns will be demeaned降低 across the factor universe体系.
         Additionally factor values will be demeaned across the factor universe
         when factor weighting the portfolio for cumulative returns plots
     group_neutral : bool
@@ -217,7 +217,7 @@ def create_returns_tear_sheet(
     by_group : bool
         If True, display graphs separately for each group.
     """
-
+    # 名字具有迷惑性，可不是计算因子的收益率，而是因子作用下的资产的收益率
     factor_returns = perf.factor_returns(
         factor_data, long_short, group_neutral
     )

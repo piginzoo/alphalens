@@ -127,8 +127,8 @@ def mean_information_coefficient(factor_data,
 
 
 def factor_weights(factor_data,
-                   demeaned=True,
-                   group_adjust=False,
+                   demeaned=True,  # demean 处理，也称为中心化（Zero-centered 或者 Mean-subtraction）。
+                   group_adjust=False, # 这里的group，在我看来就是行业
                    equal_weight=False):
     """
     Computes asset weights by factor values and dividing by the sum of their
@@ -171,7 +171,7 @@ def factor_weights(factor_data,
         if _equal_weight:
             group = group.copy()
 
-            if _demeaned:
+            if _demeaned:  # demean 处理，也称为中心化（Zero-centered 或者 Mean-subtraction）。
                 # top assets positive weights, bottom ones negative
                 group = group - group.median()
 
@@ -211,12 +211,26 @@ def factor_returns(factor_data,
                    equal_weight=False,
                    by_asset=False):
     """
-    Computes period wise returns for portfolio weighted by factor
-    values.
+    名字具有迷惑性，可不是计算因子的收益率，而是因子作用下的资产的收益率
+    Computes period wise returns for portfolio weighted by factor values.
 
     Parameters
     ----------
     factor_data : pd.DataFrame - MultiIndex
+        里面包含了一堆的东西，参考utils.get_clean_factor_and_forward_returns()
+           -------------------------------------------------------------------
+                      |       | 1D  | 5D  | 10D  |factor|group|factor_quantile
+           -------------------------------------------------------------------
+               date   | asset |     |     |      |      |     |
+           -------------------------------------------------------------------
+                      | AAPL  | 0.09|-0.01|-0.079|  0.5 |  G1 |      3
+                      --------------------------------------------------------
+                      | BA    | 0.02| 0.06| 0.020| -1.1 |  G2 |      5
+                      --------------------------------------------------------
+           2014-01-01 | CMG   | 0.03| 0.09| 0.036|  1.7 |  G2 |      1
+              --------------------------------------------------------
+
+
         A MultiIndex DataFrame indexed by date (level 0) and asset (level 1),
         containing the values for a single alpha factor, forward returns for
         each period, the factor quantile/bin that factor value belongs to, and
@@ -225,6 +239,8 @@ def factor_returns(factor_data,
     demeaned : bool
         Control how to build factor weights
         -- see performance.factor_weights for a full explanation
+        参考：http://pg.jrj.com.cn/acc/Res/CN_RES/INVEST/2017/12/6/26dee515-a988-4259-915d-e40c6ab28e45.pdf
+        即在截面上对所有的股票收益率做 demean 处理，也称为中心化（Zero-centered 或者 Mean-subtraction）。
     group_adjust : bool
         Control how to build factor weights
         -- see performance.factor_weights for a full explanation
@@ -240,12 +256,9 @@ def factor_returns(factor_data,
         Period wise factor returns
     """
 
-    weights = \
-        factor_weights(factor_data, demeaned, group_adjust, equal_weight)
+    weights = factor_weights(factor_data, demeaned, group_adjust, equal_weight)
 
-    weighted_returns = \
-        factor_data[utils.get_forward_returns_columns(factor_data.columns)] \
-        .multiply(weights, axis=0)
+    weighted_returns = factor_data[utils.get_forward_returns_columns(factor_data.columns)].multiply(weights, axis=0)
 
     if by_asset:
         returns = weighted_returns
@@ -507,12 +520,12 @@ def mean_return_by_quantile(factor_data,
         grouper = [mean_ret.index.get_level_values('factor_quantile')]
         if by_group:
             grouper.append(mean_ret.index.get_level_values('group'))
-        group_stats = mean_ret.groupby(grouper)\
+        group_stats = mean_ret.groupby(grouper) \
             .agg(['mean', 'std', 'count'])
         mean_ret = group_stats.T.xs('mean', level=1).T
 
     std_error_ret = group_stats.T.xs('std', level=1).T \
-        / np.sqrt(group_stats.T.xs('count', level=1).T)
+                    / np.sqrt(group_stats.T.xs('count', level=1).T)
 
     return mean_ret, std_error_ret
 
@@ -553,14 +566,14 @@ def compute_mean_returns_spread(mean_returns,
 
     mean_return_difference = mean_returns.xs(upper_quant,
                                              level='factor_quantile') \
-        - mean_returns.xs(lower_quant, level='factor_quantile')
+                             - mean_returns.xs(lower_quant, level='factor_quantile')
 
     if std_err is None:
         joint_std_err = None
     else:
         std1 = std_err.xs(upper_quant, level='factor_quantile')
         std2 = std_err.xs(lower_quant, level='factor_quantile')
-        joint_std_err = np.sqrt(std1**2 + std2**2)
+        joint_std_err = np.sqrt(std1 ** 2 + std2 ** 2)
 
     return mean_return_difference, joint_std_err
 

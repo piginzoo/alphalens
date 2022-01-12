@@ -172,6 +172,7 @@ def quantize_factor(factor_data,
 
 def infer_trading_calendar(factor_idx, prices_idx):
     """
+    TODO：这里面的代码里提到了holiday，不知道会不会受美国节假日影响，不过看代码似乎没有
     Infer the trading calendar from factor and price information.
 
     Parameters
@@ -241,7 +242,7 @@ def compute_forward_returns(factor,
     filter_zscore : int or float, optional
         Sets forward returns greater than X standard deviations
         from the the mean to nan. Set it to 'None' to avoid filtering.
-        Caution: this outlier filtering incorporates lookahead bias.
+        Caution: this outlier(统计异常值) filtering incorporates(体现) lookahead(先行的) bias.
     cumulative_returns : bool, optional
         If True, forward returns columns will contain cumulative returns.
         Setting this to False is useful if you want to analyze how predictive
@@ -259,13 +260,14 @@ def compute_forward_returns(factor,
         from the input data (see infer_trading_calendar for more details).
     """
 
+    # level0是日期
     factor_dateindex = factor.index.levels[0]
     if factor_dateindex.tz != prices.index.tz:
         raise NonMatchingTimezoneError("The timezone of 'factor' is not the "
                                        "same as the timezone of 'prices'. See "
                                        "the pandas methods tz_localize and "
                                        "tz_convert.")
-
+    # 感觉就是把因子和价格的日期的并集整理出来
     freq = infer_trading_calendar(factor_dateindex, prices.index)
 
     factor_dateindex = factor_dateindex.intersection(prices.index)
@@ -281,24 +283,26 @@ def compute_forward_returns(factor,
     prices = prices.filter(items=factor.index.levels[1])
 
     raw_values_dict = {}
-    column_list = []
+    column_list = [] # 由timedelta_to_string()生成的诸如"10_D, 20D"的列名
 
+    # periods可能是 [10,20,60] 之类的
     for period in sorted(periods):
         if cumulative_returns:
-            returns = prices.pct_change(period)
+            returns = prices.pct_change(period) # 这个确实是基于股票是列的基础之上，用pct_change函数算出收益率来
         else:
             returns = prices.pct_change()
 
-        forward_returns = \
-            returns.shift(-period).reindex(factor_dateindex)
+        forward_returns = returns.shift(-period).reindex(factor_dateindex)
 
+        # 大于几个标准差的就设成nan，这样可以过滤一些异常高、低的收益率
+        # 不过我觉得没必要用
         if filter_zscore is not None:
             mask = abs(
                 forward_returns - forward_returns.mean()
             ) > (filter_zscore * forward_returns.std())
             forward_returns[mask] = np.nan
 
-        #
+        # TODO：没太懂，感觉是看你传入的10、20、60之类的间隔是不是合理，暂时忽略
         # Find the period length, which will be the column name. We'll test
         # several entries in order to find out the most likely period length
         # (in case the user passed inconsinstent data)
@@ -316,6 +320,7 @@ def compute_forward_returns(factor,
             period_len = diff_custom_calendar_timedeltas(start, end, freq)
             days_diffs.append(period_len.components.days)
 
+        # scipy.stats.mode函数，寻找出现次数最多的成员
         delta_days = period_len.components.days - mode(days_diffs).mode[0]
         period_len -= pd.Timedelta(days=delta_days)
         label = timedelta_to_string(period_len)
@@ -326,7 +331,8 @@ def compute_forward_returns(factor,
 
     df = pd.DataFrame.from_dict(raw_values_dict)
     df.set_index(
-        pd.MultiIndex.from_product(
+        # 用factor的日期  X(笛卡尔乘)  价格的列(股票)
+        pd.MultiIndex.from_product( # from_product()从多个集合的笛卡尔积创建MultiIndex对象。
             [factor_dateindex, prices.columns],
             names=['date', 'asset']
         ),
@@ -460,6 +466,10 @@ def get_clean_factor(factor,
                      max_loss=0.35,
                      zero_aware=False):
     """
+    格式化因子，和，股票的收益率。
+    quantiles，会按照横截面排序成几个，比如5，就是1~5。
+    股票收益率，会按照1，5，10，分别列出，这个应该是之前计算好的。
+
     Formats the factor data, forward return data, and group mappings into a
     DataFrame that contains aligned MultiIndex indices of timestamp and asset.
     The returned data will be formatted to be suitable for Alphalens functions.
@@ -676,6 +686,11 @@ def get_clean_factor_and_forward_returns(factor,
                                          zero_aware=False,
                                          cumulative_returns=True):
     """
+    入参需要强调一下，格式不一样的：
+    factor的索引是 [日期,股票]，列只有1个，就是因子值
+    prices的索引是 [日期]， 而列是所有的股票。
+    cumulative_returns，也不是从最开始的累计收益，而是periods提到的周期内的累计收益。
+
     Formats the factor data, pricing data, and group mappings into a DataFrame
     that contains aligned MultiIndex indices of timestamp and asset. The
     returned data will be formatted to be suitable for Alphalens functions.
@@ -824,14 +839,19 @@ def get_clean_factor_and_forward_returns(factor,
     utils.get_clean_factor
         For use when forward returns are already available.
     """
+
+    # 计算N期之后，这个股票对应的收益率
     forward_returns = compute_forward_returns(
         factor,
         prices,
         periods,
         filter_zscore,
-        cumulative_returns,
+        cumulative_returns, # 这个参数有迷惑性，不是从开始每期每期的累计收益，而是找个周期的累计收益
+                            # 如果是false，计算的是每一天的，true是这10天的，而不是从最最开始的时候的累计
     )
 
+    # 会把factor, forward_returns合成1个df，且，算出每个横截面（日子）对应的排名（根据quantiles）
+    # TODO groupby没搞定？？？
     factor_data = get_clean_factor(factor, forward_returns, groupby=groupby,
                                    groupby_labels=groupby_labels,
                                    quantiles=quantiles, bins=bins,
