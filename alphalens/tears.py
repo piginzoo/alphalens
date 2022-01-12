@@ -158,7 +158,7 @@ def create_summary_tear_sheet(
 
     # Information Analysis
     ic = perf.factor_information_coefficient(factor_data)
-    plotting.plot_information_table(ic)
+    ic_result = plotting.plot_information_table(ic)
 
     # Turnover Analysis
     quantile_factor = factor_data["factor_quantile"]
@@ -224,11 +224,12 @@ def create_returns_tear_sheet(
 
     mean_quant_ret, std_quantile = perf.mean_return_by_quantile(
         factor_data,
-        by_group=False,
-        demeaned=long_short,
-        group_adjust=group_neutral,
+        by_group=False,  # group其实就是行业
+        demeaned=long_short,  # 多空，其实，就是减不减均值
+        group_adjust=group_neutral,  # 搞不搞行业中性化
     )
 
+    # ??? 感觉是算累计收益率似的？没太明白
     mean_quant_rateret = mean_quant_ret.apply(
         utils.rate_of_return, axis=0, base_period=mean_quant_ret.columns[0]
     )
@@ -359,6 +360,10 @@ def create_returns_tear_sheet(
         plot_image("group")
         gf.close()
 
+    return factor_returns, mean_quant_ret, mean_quant_rateret, std_quantile, \
+           mean_quant_ret_bydate, std_quant_daily, mean_quant_rateret_bydate, \
+           compstd_quant_daily, alpha_beta, mean_ret_spread_quant, std_spread_quant
+
 
 @plotting.customize
 def create_information_tear_sheet(
@@ -383,7 +388,7 @@ def create_information_tear_sheet(
 
     ic = perf.factor_information_coefficient(factor_data, group_neutral)
 
-    plotting.plot_information_table(ic)
+    ic_result = plotting.plot_information_table(ic)
 
     columns_wide = 2
     fr_cols = len(ic.columns)
@@ -417,9 +422,10 @@ def create_information_tear_sheet(
 
         plotting.plot_ic_by_group(mean_group_ic, ax=gf.next_row())
 
-    #plt.show()
+    # plt.show()
     plot_image()
     gf.close()
+    return ic, ic_result
 
 
 @plotting.customize

@@ -13,27 +13,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
-import pandas as pd
-from scipy import stats
-import statsmodels.api as sm
-
-import seaborn as sns
-import matplotlib.cm as cm
-import matplotlib.pyplot as plt
-from matplotlib.ticker import ScalarFormatter
-
 from functools import wraps
 
-from . import utils
+import matplotlib.cm as cm
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import seaborn as sns
+import statsmodels.api as sm
+from matplotlib.ticker import ScalarFormatter
+from scipy import stats
+
 from . import performance as perf
+from . import utils
 
 DECIMAL_TO_BPS = 10000
+
 
 def customize(func):
     """
     Decorator to set plotting context and axes style during function call.
     """
+
     @wraps(func)
     def call_w_context(*args, **kwargs):
         set_context = kwargs.pop('set_context', True)
@@ -44,6 +45,7 @@ def customize(func):
                 return func(*args, **kwargs)
         else:
             return func(*args, **kwargs)
+
     return call_w_context
 
 
@@ -168,21 +170,24 @@ def plot_information_table(ic_data):
     ic_summary_table["IC Std."] = ic_data.std()
     ic_summary_table["Risk-Adjusted IC"] = \
         ic_data.mean() / ic_data.std()
-    t_stat, p_value = stats.ttest_1samp(ic_data, 0)
+    # T检验，H_0假设是 ic_data的均值=0(popmean)， 参考：http://www.noobyard.com/article/p-dihbhkqa-nw.html
+    # 靠！ic=0，就是因子和收益不相关啊，这个H_0的t值越大越好啊，p_value也就是为0的概率越小越好啊
+    t_stat, p_value = stats.ttest_1samp(ic_data, popmean=0)
     ic_summary_table["t-stat(IC)"] = t_stat
     ic_summary_table["p-value(IC)"] = p_value
-    ic_summary_table["IC Skew"] = stats.skew(ic_data)
-    ic_summary_table["IC Kurtosis"] = stats.kurtosis(ic_data)
+    ic_summary_table["IC Skew"] = skew = stats.skew(ic_data)
+    ic_summary_table["IC Kurtosis"] = kurtosis = stats.kurtosis(ic_data)
 
     print("Information Analysis")
     utils.print_table(ic_summary_table.apply(lambda x: x.round(3)).T)
+    return t_stat, p_value, skew, kurtosis
 
 
 def plot_quantile_statistics_table(factor_data):
     quantile_stats = factor_data.groupby('factor_quantile') \
         .agg(['min', 'max', 'mean', 'std', 'count'])['factor']
     quantile_stats['count %'] = quantile_stats['count'] \
-        / quantile_stats['count'].sum() * 100.
+                                / quantile_stats['count'].sum() * 100.
 
     print("Quantiles Statistics")
     utils.print_table(quantile_stats)
@@ -225,7 +230,7 @@ def plot_ic_ts(ic, ax=None):
         a.set(ylabel='IC', xlabel="")
         a.set_title(
             "{} Period Forward Return Information Coefficient (IC)"
-            .format(period_num))
+                .format(period_num))
         a.axhline(0.0, linestyle='-', color='black', lw=1, alpha=0.8)
         a.legend(['IC', '1 month moving avg'], loc='upper right')
         a.text(.05, .95, "Mean %.3f \n Std. %.3f" % (ic.mean(), ic.std()),
@@ -330,9 +335,9 @@ def plot_ic_qq(ic, theoretical_dist=stats.norm, ax=None):
         sm.qqplot(ic.replace(np.nan, 0.).values, theoretical_dist, fit=True,
                   line='45', ax=a)
         a.set(title="{} Period IC {} Dist. Q-Q".format(
-              period_num, dist_name),
-              ylabel='Observed Quantile',
-              xlabel='{} Distribution Quantile'.format(dist_name))
+            period_num, dist_name),
+            ylabel='Observed Quantile',
+            xlabel='{} Distribution Quantile'.format(dist_name))
 
     return ax
 
@@ -384,8 +389,8 @@ def plot_quantile_returns_bar(mean_ret_by_q,
 
         for a, (sc, cor) in zip(ax, mean_ret_by_q.groupby(level='group')):
             (cor.xs(sc, level='group')
-                .multiply(DECIMAL_TO_BPS)
-                .plot(kind='bar', title=sc, ax=a))
+             .multiply(DECIMAL_TO_BPS)
+             .plot(kind='bar', title=sc, ax=a))
 
             a.set(xlabel='', ylabel='Mean Return (bps)',
                   ylim=(ymin, ymax))
@@ -400,8 +405,8 @@ def plot_quantile_returns_bar(mean_ret_by_q,
             f, ax = plt.subplots(1, 1, figsize=(18, 6))
 
         (mean_ret_by_q.multiply(DECIMAL_TO_BPS)
-            .plot(kind='bar',
-                  title="Mean Period Wise Return By Factor Quantile", ax=ax))
+         .plot(kind='bar',
+               title="Mean Period Wise Return By Factor Quantile", ax=ax))
         ax.set(xlabel='', ylabel='Mean Return (bps)',
                ylim=(ymin, ymax))
 
@@ -688,7 +693,6 @@ def plot_monthly_ic_heatmap(mean_monthly_ic, ax=None):
         names=["year", "month"])
 
     for a, (periods_num, ic) in zip(ax, mean_monthly_ic.iteritems()):
-
         sns.heatmap(
             ic.unstack(),
             annot=True,
@@ -853,7 +857,7 @@ def plot_quantile_average_cumulative_return(avg_cumulative_returns,
             ax = ax.flatten()
 
         for i, (quantile, q_ret) in enumerate(avg_cumulative_returns
-                                              .groupby(level='factor_quantile')
+                                                      .groupby(level='factor_quantile')
                                               ):
 
             mean = q_ret.loc[(quantile, 'mean')]
@@ -876,7 +880,7 @@ def plot_quantile_average_cumulative_return(avg_cumulative_returns,
             f, ax = plt.subplots(1, 1, figsize=(18, 6))
 
         for i, (quantile, q_ret) in enumerate(avg_cumulative_returns
-                                              .groupby(level='factor_quantile')
+                                                      .groupby(level='factor_quantile')
                                               ):
 
             mean = q_ret.loc[(quantile, 'mean')]

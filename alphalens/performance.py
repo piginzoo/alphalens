@@ -522,6 +522,7 @@ def mean_return_by_quantile(factor_data,
             grouper.append(mean_ret.index.get_level_values('group'))
         group_stats = mean_ret.groupby(grouper) \
             .agg(['mean', 'std', 'count'])
+        # xs函数：横截面函数：https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.xs.html
         mean_ret = group_stats.T.xs('mean', level=1).T
 
     std_error_ret = group_stats.T.xs('std', level=1).T \
