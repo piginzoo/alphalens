@@ -293,6 +293,19 @@ def compute_forward_returns(factor,
             returns = prices.pct_change()
 
         forward_returns = returns.shift(-period).reindex(factor_dateindex)
+        """
+        shift(-3)，这样做是为了让收益的日期，和原有的prices，错开对齐
+        当前         shift后     pct_change值  
+                    2021.1.1    NAN
+                    2021.1.3    NAN
+                    2021.1.4    NAN
+        ---------------------------
+        2021.1.1    2021.1.5    0.1
+        2021.1.3    2021.1.6    0.2
+        2021.1.4                NAN
+        2021.1.5                NAN
+        2021.1.6                NAN
+        """
 
         # 大于几个标准差的就设成nan，这样可以过滤一些异常高、低的收益率
         # 不过我觉得没必要用
@@ -839,8 +852,8 @@ def get_clean_factor_and_forward_returns(factor,
     utils.get_clean_factor
         For use when forward returns are already available.
     """
-
     # 计算N期之后，这个股票对应的收益率
+    # 这个获得的是各个股票的N日（prices）间隔的收益率
     forward_returns = compute_forward_returns(
         factor,
         prices,
