@@ -39,7 +39,7 @@ def plot_image(no=None, factor_name=None):
 
     if not factor_name: factor_name = 'Unkown'
 
-    factor_dir = "/debug/{}".format(factor_name)
+    factor_dir = "debug/{}".format(factor_name)
     if not os.path.exists(factor_dir): os.makedirs(factor_dir)
     if no:
         file_name = os.path.join(factor_dir, "{}_{}.jpg".format(caller_name, no))
@@ -292,12 +292,11 @@ def create_returns_tear_sheet(
         mean_quant_rateret,
         by_group=False,
         ylim_percentiles=None,
-        ax=gf.next_row(),
-        factor_name=factor_name
+        ax=gf.next_row()
     )
 
     plotting.plot_quantile_returns_violin(
-        mean_quant_rateret_bydate, ylim_percentiles=(1, 99), ax=gf.next_row()
+        mean_quant_rateret_bydate, ylim_percentiles=(1, 99), ax=gf.next_row(),factor_name=factor_name
     )
 
     trading_calendar = factor_data.index.levels[0].freq
