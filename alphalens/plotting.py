@@ -134,7 +134,8 @@ def axes_style(style='darkgrid', rc=None):
 
 def plot_returns_table(alpha_beta,
                        mean_ret_quantile,
-                       mean_ret_spread_quantile):
+                       mean_ret_spread_quantile,
+                       factor_name):
     returns_table = pd.DataFrame()
     returns_table = returns_table.append(alpha_beta)
     returns_table.loc["Mean Period Wise Return Top Quantile (bps)"] = \
@@ -144,11 +145,11 @@ def plot_returns_table(alpha_beta,
     returns_table.loc["Mean Period Wise Spread (bps)"] = \
         mean_ret_spread_quantile.mean() * DECIMAL_TO_BPS
 
-    print("Returns Analysis")
+    print("Returns Analysis : factor ",factor_name)
     utils.print_table(returns_table.apply(lambda x: x.round(3)))
 
 
-def plot_turnover_table(autocorrelation_data, quantile_turnover):
+def plot_turnover_table(autocorrelation_data, quantile_turnover,factor_name):
     turnover_table = pd.DataFrame()
     for period in sorted(quantile_turnover.keys()):
         for quantile, p_data in quantile_turnover[period].iteritems():
@@ -159,12 +160,12 @@ def plot_turnover_table(autocorrelation_data, quantile_turnover):
         auto_corr.loc["Mean Factor Rank Autocorrelation",
                       "{}D".format(period)] = p_data.mean()
 
-    print("Turnover Analysis")
+    print("Turnover Analysis : factor ",factor_name)
     utils.print_table(turnover_table.apply(lambda x: x.round(3)))
     utils.print_table(auto_corr.apply(lambda x: x.round(3)))
 
 
-def plot_information_table(ic_data):
+def plot_information_table(ic_data,factor_name):
     ic_summary_table = pd.DataFrame()
     ic_summary_table["IC Mean"] = ic_data.mean()
     ic_summary_table["IC Std."] = ic_data.std()
@@ -178,22 +179,22 @@ def plot_information_table(ic_data):
     ic_summary_table["IC Skew"] = skew = stats.skew(ic_data)
     ic_summary_table["IC Kurtosis"] = kurtosis = stats.kurtosis(ic_data)
 
-    print("Information Analysis")
+    print("Information Analysis : factor ",factor_name)
     utils.print_table(ic_summary_table.apply(lambda x: x.round(3)).T)
     return t_stat, p_value, skew, kurtosis
 
 
-def plot_quantile_statistics_table(factor_data):
+def plot_quantile_statistics_table(factor_data, factor_name):
     quantile_stats = factor_data.groupby('factor_quantile') \
         .agg(['min', 'max', 'mean', 'std', 'count'])['factor']
     quantile_stats['count %'] = quantile_stats['count'] \
                                 / quantile_stats['count'].sum() * 100.
 
-    print("Quantiles Statistics")
+    print("Quantiles Statistics for factor ",factor_name)
     utils.print_table(quantile_stats)
 
 
-def plot_ic_ts(ic, ax=None):
+def plot_ic_ts(ic, ax=None,factor_name=None):
     """
     Plots Spearman Rank Information Coefficient and IC moving
     average for a given factor.
@@ -229,7 +230,7 @@ def plot_ic_ts(ic, ax=None):
 
         a.set(ylabel='IC', xlabel="")
         a.set_title(
-            "{} Period Forward Return Information Coefficient (IC)"
+            "{} Period Forward Return Information Coefficient (IC) for factor "+factor_name
                 .format(period_num))
         a.axhline(0.0, linestyle='-', color='black', lw=1, alpha=0.8)
         a.legend(['IC', '1 month moving avg'], loc='upper right')
@@ -345,7 +346,8 @@ def plot_ic_qq(ic, theoretical_dist=stats.norm, ax=None):
 def plot_quantile_returns_bar(mean_ret_by_q,
                               by_group=False,
                               ylim_percentiles=None,
-                              ax=None):
+                              ax=None,
+                              ):
     """
     Plots mean period wise returns for factor quantiles.
 
@@ -415,7 +417,8 @@ def plot_quantile_returns_bar(mean_ret_by_q,
 
 def plot_quantile_returns_violin(return_by_q,
                                  ylim_percentiles=None,
-                                 ax=None):
+                                 ax=None,
+                                 factor_name=None):
     """
     Plots a violin box plot of period wise returns for factor quantiles.
 
@@ -465,7 +468,7 @@ def plot_quantile_returns_violin(return_by_q,
                    inner='quartile',
                    ax=ax)
     ax.set(xlabel='', ylabel='Return (bps)',
-           title="Period Wise Return By Factor Quantile",
+           title="Period Wise Return By Factor Quantile for factor "+factor_name,
            ylim=(ymin, ymax))
 
     ax.axhline(0.0, linestyle='-', color='black', lw=0.7, alpha=0.6)
@@ -476,7 +479,8 @@ def plot_quantile_returns_violin(return_by_q,
 def plot_mean_quantile_returns_spread_time_series(mean_returns_spread,
                                                   std_err=None,
                                                   bandwidth=1,
-                                                  ax=None):
+                                                  ax=None,
+                                                  factor_name=None):
     """
     Plots mean period wise returns for factor quantiles.
 
@@ -508,7 +512,8 @@ def plot_mean_quantile_returns_spread_time_series(mean_returns_spread,
             stdn = None if std_err is None else std_err[name]
             a = plot_mean_quantile_returns_spread_time_series(fr_column,
                                                               std_err=stdn,
-                                                              ax=a)
+                                                              ax=a,
+                                                              factor_name=factor_name)
             ax[i] = a
             curr_ymin, curr_ymax = a.get_ylim()
             ymin = curr_ymin if ymin is None else min(ymin, curr_ymin)
@@ -523,7 +528,7 @@ def plot_mean_quantile_returns_spread_time_series(mean_returns_spread,
         return ax
 
     periods = mean_returns_spread.name
-    title = ('Top Minus Bottom Quantile Mean Return ({} Period Forward Return)'
+    title = ('Top Minus Bottom Quantile Mean Return ({} Period Forward Return) for factor '+factor_name
              .format(periods if periods is not None else ""))
 
     if ax is None:
@@ -559,7 +564,7 @@ def plot_mean_quantile_returns_spread_time_series(mean_returns_spread,
     return ax
 
 
-def plot_ic_by_group(ic_group, ax=None):
+def plot_ic_by_group(ic_group, ax=None,factor_name=None):
     """
     Plots Spearman Rank Information Coefficient for a given factor over
     provided forward returns. Separates by group.
@@ -580,7 +585,7 @@ def plot_ic_by_group(ic_group, ax=None):
         f, ax = plt.subplots(1, 1, figsize=(18, 6))
     ic_group.plot(kind='bar', ax=ax)
 
-    ax.set(title="Information Coefficient By Group", xlabel="")
+    ax.set(title="Information Coefficient By Group for factor "+factor_name, xlabel="")
     ax.set_xticklabels(ic_group.index, rotation=45)
 
     return ax
@@ -588,7 +593,8 @@ def plot_ic_by_group(ic_group, ax=None):
 
 def plot_factor_rank_auto_correlation(factor_autocorrelation,
                                       period=1,
-                                      ax=None):
+                                      ax=None,
+                                      factor_name=None):
     """
     Plots factor rank autocorrelation over time.
     See factor_rank_autocorrelation for more details.
@@ -611,7 +617,7 @@ def plot_factor_rank_auto_correlation(factor_autocorrelation,
     if ax is None:
         f, ax = plt.subplots(1, 1, figsize=(18, 6))
 
-    factor_autocorrelation.plot(title='{}D Period Factor Rank Autocorrelation'
+    factor_autocorrelation.plot(title='{}D Period Factor Rank Autocorrelation for factor ' + factor_name
                                 .format(period), ax=ax)
     ax.set(ylabel='Autocorrelation Coefficient', xlabel='')
     ax.axhline(0.0, linestyle='-', color='black', lw=1)
@@ -624,7 +630,7 @@ def plot_factor_rank_auto_correlation(factor_autocorrelation,
     return ax
 
 
-def plot_top_bottom_quantile_turnover(quantile_turnover, period=1, ax=None):
+def plot_top_bottom_quantile_turnover(quantile_turnover, period=1, ax=None,factor_name=None):
     """
     Plots period wise top and bottom quantile factor turnover.
 
@@ -650,14 +656,14 @@ def plot_top_bottom_quantile_turnover(quantile_turnover, period=1, ax=None):
     turnover = pd.DataFrame()
     turnover['top quantile turnover'] = quantile_turnover[max_quantile]
     turnover['bottom quantile turnover'] = quantile_turnover[min_quantile]
-    turnover.plot(title='{}D Period Top and Bottom Quantile Turnover'
+    turnover.plot(title='{}D Period Top and Bottom Quantile Turnover for factor '+factor_name
                   .format(period), ax=ax, alpha=0.6, lw=0.8)
     ax.set(ylabel='Proportion Of Names New To Quantile', xlabel="")
 
     return ax
 
 
-def plot_monthly_ic_heatmap(mean_monthly_ic, ax=None):
+def plot_monthly_ic_heatmap(mean_monthly_ic, ax=None,factor_name=None):
     """
     Plots a heatmap of the information coefficient or returns by month.
 
@@ -706,7 +712,7 @@ def plot_monthly_ic_heatmap(mean_monthly_ic, ax=None):
             ax=a)
         a.set(ylabel='', xlabel='')
 
-        a.set_title("Monthly Mean {} Period IC".format(periods_num))
+        a.set_title("Monthly Mean {} Period IC for factor {}".format(periods_num,factor_name))
 
     if num_plots < len(ax):
         ax[-1].set_visible(False)
@@ -718,7 +724,8 @@ def plot_cumulative_returns(factor_returns,
                             period,
                             freq=None,
                             title=None,
-                            ax=None):
+                            ax=None,
+                            factor_name=None):
     """
     Plots the cumulative returns of the returns series passed in.
 
@@ -753,7 +760,7 @@ def plot_cumulative_returns(factor_returns,
 
     factor_returns.plot(ax=ax, lw=3, color='forestgreen', alpha=0.6)
     ax.set(ylabel='Cumulative Returns',
-           title=("Portfolio Cumulative Return ({} Fwd Period)".format(period)
+           title=("Portfolio Cumulative Return ({} Fwd Period) for factor {}".format(period,factor_name)
                   if title is None else title),
            xlabel='')
     ax.axhline(1.0, linestyle='-', color='black', lw=1)
@@ -764,7 +771,8 @@ def plot_cumulative_returns(factor_returns,
 def plot_cumulative_returns_by_quantile(quantile_returns,
                                         period,
                                         freq=None,
-                                        ax=None):
+                                        ax=None,
+                                        factor_name=None):
     """
     Plots the cumulative returns of various factor quantiles.
 
@@ -803,7 +811,7 @@ def plot_cumulative_returns_by_quantile(quantile_returns,
     ymin, ymax = cum_ret.min().min(), cum_ret.max().max()
     ax.set(ylabel='Log Cumulative Returns',
            title='''Cumulative Return by Quantile
-                    ({} Period Forward Return)'''.format(period),
+                    ({} Period Forward Return) for factor {}'''.format(period,factor_name),
            xlabel='',
            yscale='symlog',
            yticks=np.linspace(ymin, ymax, 5),
@@ -819,7 +827,8 @@ def plot_quantile_average_cumulative_return(avg_cumulative_returns,
                                             by_quantile=False,
                                             std_bar=False,
                                             title=None,
-                                            ax=None):
+                                            ax=None,
+                                            factor_name=None):
     """
     Plots sector-wise mean daily returns for factor quantiles
     across provided forward price movement columns.
@@ -896,14 +905,14 @@ def plot_quantile_average_cumulative_return(avg_cumulative_returns,
         ax.axvline(x=0, color='k', linestyle='--')
         ax.legend()
         ax.set(ylabel='Mean Return (bps)',
-               title=("Average Cumulative Returns by Quantile"
+               title=("Average Cumulative Returns by Quantile for factor "+factor_name
                       if title is None else title),
                xlabel='Periods')
 
     return ax
 
 
-def plot_events_distribution(events, num_bars=50, ax=None):
+def plot_events_distribution(events, num_bars=50, ax=None,factor_name=None):
     """
     Plots the distribution of events in time.
 
@@ -930,7 +939,7 @@ def plot_events_distribution(events, num_bars=50, ax=None):
     grouper = pd.Grouper(level='date', freq=group_interval)
     events.groupby(grouper).count().plot(kind="bar", grid=False, ax=ax)
     ax.set(ylabel='Number of events',
-           title='Distribution of events in time',
+           title='Distribution of events in time for factor '+factor_name,
            xlabel='Date')
 
     return ax
