@@ -26,9 +26,9 @@ from . import plotting
 from . import utils
 
 
-def plot_image(no=None, factor_name=None):
+def plot_image(no=None, factor_name=None, dir="debug/factors"):
     """
-    plot各类因子的分析图
+    plot各类因子的分析图,如果因子名是 "factor.sub_factor"，那么就在创建一个sub_factor子目录
     :param no:
     :param factor_name:
     :return:
@@ -39,8 +39,15 @@ def plot_image(no=None, factor_name=None):
 
     if not factor_name: factor_name = 'Unkown'
 
-    factor_dir = "debug/{}".format(factor_name)
+    # 例如 turnover.1m_turnover => debug/factors/turnover/1m_turnover
+    if "." in factor_name:
+        sub_factor_dir = "/".join(factor_name.split("."))
+        factor_dir = "{}/{}".format(dir,sub_factor_dir)
+    else:
+        factor_dir = "{}/{}".format(dir,factor_name)
+
     if not os.path.exists(factor_dir): os.makedirs(factor_dir)
+
     if no:
         file_name = os.path.join(factor_dir, "{}_{}.jpg".format(caller_name, no))
         plt.savefig(file_name)
