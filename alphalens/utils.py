@@ -372,7 +372,6 @@ def compute_forward_returns(factor,
 
     # now set the columns correctly
     df = df[column_list]
-
     df.index.levels[0].freq = freq
     df.index.set_names(['date', 'asset'], inplace=True)
 
@@ -908,6 +907,10 @@ def rate_of_return(period_ret, base_period):
     returns would have every 'one_period_len' if they had grown at a steady
     rate
 
+    我理解这个是把一段时间的收益率，还原到每一天去，比如我知道了5天的收益率，我来问你每天的收益率
+      --> period_ret.add(1).pow(conversion_factor).sub(1)
+      --> period_ret.add(1).pow(1/5).sub(1)
+
     Parameters
     ----------
     period_ret: pd.DataFrame
@@ -924,9 +927,22 @@ def rate_of_return(period_ret, base_period):
         DataFrame in same format as input but with 'one_period_len' rate of
         returns values.
     """
-    period_len = period_ret.name
-    conversion_factor = (pd.Timedelta(base_period) /
-                         pd.Timedelta(period_len))
+    # period_ret 就是你回测期的总的回报率
+    period_len = period_ret.name  # periold_len pdb值：'1D', '5D'
+    conversion_factor = (pd.Timedelta(base_period) / # base_period就是你的回测期，用的是column的name，即 '1D','5D'
+                         pd.Timedelta(period_len))  #
+    """
+    (Pdb) pp period_ret, period_len, base_period
+        (factor_quantile
+        1.0    0.008426
+        2.0   -0.009757
+        3.0   -0.001937
+        4.0   -0.006727
+        5.0    0.010852
+        Name: 5D, dtype: float64,
+         '5D',
+         '1D')
+    """
     return period_ret.add(1).pow(conversion_factor).sub(1)
 
 

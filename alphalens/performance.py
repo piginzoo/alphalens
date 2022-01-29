@@ -313,6 +313,7 @@ def factor_alpha_beta(factor_data,
         returns = \
             factor_returns(factor_data, demeaned, group_adjust, equal_weight)
 
+    # 按照日期分组，得到每个日期有50只股票的因子，然后，求了一个**50只股票这一天的因子平均值**
     universe_ret = factor_data.groupby(level='date')[
         utils.get_forward_returns_columns(factor_data.columns)] \
         .mean().loc[returns.index]
@@ -327,6 +328,28 @@ def factor_alpha_beta(factor_data,
         y = returns[period].values
         x = add_constant(x)
 
+
+
+        import pdb;pdb.set_trace()
+        """
+        这个应该是一个横截面回归，即某一天（不准确，是某个调仓期）
+        y：某调仓期的下期的股票收益率
+        x：某个调仓期对应的因子值
+        注意，这里因为有多个quantile，实际上是一个quantile一个quantile分着算的
+        (Pdb) pp universe_ret
+                                  1D        5D
+                date
+                2020-01-02 -0.002749  0.008513
+                2020-01-03  0.001146  0.004509
+                2020-01-06  0.010194  0.016738
+                ...
+         (Pdb) pp returns # 这个实际上是因子的某一天的50只股票的因子的平均值了
+                                  1D        5D
+                date
+                2020-01-02 -0.005937 -0.004048
+                2020-01-03 -0.007303  0.000270
+                2020-01-06 -0.014044 -0.003806                
+        """
         reg_fit = OLS(y, x).fit()
         try:
             alpha, beta = reg_fit.params
@@ -334,8 +357,9 @@ def factor_alpha_beta(factor_data,
             alpha_beta.loc['Ann. alpha', period] = np.nan
             alpha_beta.loc['beta', period] = np.nan
         else:
+            # 靠！调整成年化
             freq_adjust = pd.Timedelta('252Days') / pd.Timedelta(period)
-
+            # Ann. 指的就是年化
             alpha_beta.loc['Ann. alpha', period] = \
                 (1 + alpha) ** freq_adjust - 1
             alpha_beta.loc['beta', period] = beta

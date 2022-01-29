@@ -245,6 +245,7 @@ def create_returns_tear_sheet(
     )
 
     # 这个很重要，是按照分组quantile，来算每组的收益率
+    # mean_return_by_quantile -> 分组后的某组的收益的均值
     mean_quant_ret, std_quantile = perf.mean_return_by_quantile(
         factor_data,
         by_group=False,  # group其实就是行业
@@ -257,6 +258,7 @@ def create_returns_tear_sheet(
         utils.rate_of_return, axis=0, base_period=mean_quant_ret.columns[0]
     )
 
+    # mean_return_by_quantile -> 分组后的某组的收益的均值，但是，是按照每天来算的，和249行那个不用，那个是总的收益率
     mean_quant_ret_bydate, std_quant_daily = perf.mean_return_by_quantile(
         factor_data,
         by_date=True,
@@ -265,19 +267,62 @@ def create_returns_tear_sheet(
         group_adjust=group_neutral,
     )
 
-    #
+    """
+    # utils.rate_of_return是把不同间隔的收益还原到1天的收益里
+    举个例子把，我用5D的收益率调仓了，现在我问你，这5天里，每天的收益率是多少？
+    你可能会觉得，我是知道每天的股票的收益啊？
+    别糊涂，现在是我是算的一个组合的，即用5天收益率排序得到的某组的组合投资的，日均收益率
+    """
     mean_quant_rateret_bydate = mean_quant_ret_bydate.apply(
         utils.rate_of_return,
         axis=0,
         base_period=mean_quant_ret_bydate.columns[0],
     )
 
+    # 同上，不过这次算的方差
     compstd_quant_daily = std_quant_daily.apply(
-        utils.std_conversion, axis=0, base_period=std_quant_daily.columns[0]
+        utils.std_conversion,
+        axis=0,
+        base_period=std_quant_daily.columns[0]
     )
 
+    """
+    计算因子和收益率的回归，干嘛要做这个呢？算因子收益率啊。
+    R_股票i = alhpa_股票i  + beta_股票i * 当期因子收益率 + 残差 # beta_股票i就是当期因子值 
+    R_i = alpha_i + factor_i * factor_return + e_i
+    注意啊，我们的前面得到的因子，所谓的因子，其实是因子暴露，
+    而，我们回归出来的，才是因子收益率，
+    它是一个当期的1个值，而不是每个股票对应1个值，
+    每个股票对应有一个值的东东是因子暴露（简称因子，我们最开始准备好的）
+    
+    看下面的数据演示，我们可以理解，
+    --------
+    factor_data:
+                                        1D        5D        factor  factor_quantile
+            date       asset
+            2020-01-02 600160.SH -0.008186 -0.021829  9.992007e-16              4.0
+                       600161.SH -0.000359 -0.003948 -9.901982e-02              1.0
+            ...                        ...       ...           ...              ...
+            2020-08-25 600195.SH  0.010417  0.095943 -1.229528e+00              1.0
+                       600201.SH -0.029756  0.007439  1.229528e+00              5.0
+            ...                        ...       ...           ...              ...
+    factor_returns
+                              1D        5D
+            date
+            2020-01-02 -0.005937 -0.004048
+            2020-01-03 -0.007303  0.000270
+            2020-01-06 -0.014044 -0.003806
+    返回：
+                              1D        5D
+            Ann. alpha  0.059765  0.060024
+            beta        0.044697  0.079839    
+    """
+    import pdb;pdb.set_trace()
     alpha_beta = perf.factor_alpha_beta(
-        factor_data, factor_returns, long_short, group_neutral
+        factor_data,
+        factor_returns,
+        long_short, # 默认是True
+        group_neutral # 默认是false
     )
 
     mean_ret_spread_quant, std_spread_quant = perf.compute_mean_returns_spread(
