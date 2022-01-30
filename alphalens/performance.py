@@ -550,6 +550,18 @@ def mean_return_by_quantile(factor_data,
     if by_group:
         grouper.append('group')
 
+    """
+    看，用的计算的是factor_data的1D，5D，10D列，
+    对这些列求'mean', 'std', 'count'
+    这些列，是每个1D，5D，10D，这些股票的收益率
+    (Pdb) pp factor_data
+                                1D        5D        factor  factor_quantile
+    date       asset
+    2020-01-02 600160.SH -0.008186 -0.021829  9.992007e-16              4.0
+               600161.SH -0.000359 -0.003948 -9.901982e-02              1.0
+               600166.SH  0.023809  0.023809 -7.771561e-16              2.0
+               600167.SH -0.008430 -0.000767  1.110223e-16              3.0    
+    """
     group_stats = factor_data.groupby(grouper)[
         utils.get_forward_returns_columns(factor_data.columns)] \
         .agg(['mean', 'std', 'count'])

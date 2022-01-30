@@ -251,13 +251,29 @@ def create_returns_tear_sheet(
         demeaned=long_short,  # 多空，其实，就是减不减均值
         group_adjust=group_neutral,  # 搞不搞行业中性化
     )
-
-    import pdb;pdb.set_trace()
+    """
+    计算完，得到每组的平均收益率，是把日子已经平均了，没有日期了
+    (Pdb) pp mean_quant_ret
+                           1D        5D
+    factor_quantile
+    1.0              0.002037  0.008426
+    2.0             -0.001470 -0.009757
+    3.0             -0.001558 -0.001937    
+    """
 
     # 把分组的累计收益率，日均化
     mean_quant_rateret = mean_quant_ret.apply(
         utils.rate_of_return, axis=0, base_period=mean_quant_ret.columns[0]
     )
+    """
+    (Pdb) pp mean_quant_rateret
+                           1D        5D
+    factor_quantile
+    1.0              0.002037  0.001680 <--- 看，1天的相同，而5D的变小了，好理解把
+    2.0             -0.001470 -0.001959
+    3.0             -0.001558 -0.000388    
+    """
+
 
     # mean_return_by_quantile -> 分组后的某组的收益的均值，但是，是按照每天来算的，和249行那个不用，那个是总的收益率
     mean_quant_ret_bydate, std_quant_daily = perf.mean_return_by_quantile(
@@ -267,6 +283,17 @@ def create_returns_tear_sheet(
         demeaned=long_short,
         group_adjust=group_neutral,
     )
+    """
+    (Pdb) pp mean_quant_ret_bydate
+                                      1D        5D
+    factor_quantile date
+    1.0             2020-01-02 -0.002033  0.009178
+                    2020-01-03  0.007926  0.023622
+                    2020-01-06  0.021653  0.018836
+    ...             .....
+    是，每一个quantile分组内，每一天，50只股票对应的对应的平均收益，mean，这词就是这个意思    
+    """
+
 
     """
     # utils.rate_of_return是把不同间隔的收益还原到1天的收益里
@@ -279,6 +306,24 @@ def create_returns_tear_sheet(
         axis=0,
         base_period=mean_quant_ret_bydate.columns[0],
     )
+    """
+    (Pdb) pp mean_quant_rateret_bydate
+                                      1D            5D
+    factor_quantile date
+    1.0             2020-01-02 -0.002033  1.828945e-03
+                    2020-01-03  0.007926  4.680298e-03
+                    2020-01-06  0.021653  3.739118e-03
+                    2020-01-07  0.002043  7.993446e-03
+                    2020-01-08 -0.004807  8.661800e-04    
+    看，是到每一个交易日了，1D的跟前面的mean相同，但是5D的明显小了，
+    前面那个叫"mean_quant_ret_bydate"，是说每一天，50只股票的平均收益率，但是是对5D，10D来说的，
+    这个呢？是把5D，10D的再细化到1天。
+    举个例子把：
+    看前的第一行的最后1个：0.009178，是quantile=1，period=5D，他的意思是说，2020-01-02日到后面5天也就是1.2~1.7号的收益率是0.009178，
+    那么我现在问你，1.2~1.7，每天的收益率是多少呢？答案就是上述的第一行的最后一个：1.828945e-03：quantile=1,date=2020-1-2
+    """
+
+
 
     # 同上，不过这次算的方差
     compstd_quant_daily = std_quant_daily.apply(
@@ -323,7 +368,7 @@ def create_returns_tear_sheet(
     """
     alpha_beta = perf.factor_alpha_beta(
         factor_data, # 这个是因子值，每天的50个股票对应的因子值，取个平均
-        factor_returns, #
+        factor_returns, # 这个是因子收益，这个收益怎么来的呢？是对每一天，计算，这50只股票按照因子值加权平均的收益率
         long_short, # 默认是True
         group_neutral # 默认是false
     )
