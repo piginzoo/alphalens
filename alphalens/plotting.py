@@ -136,6 +136,22 @@ def plot_returns_table(alpha_beta,
                        mean_ret_quantile,
                        mean_ret_spread_quantile,
                        factor_name):
+    """
+    Returns Analysis : factor  clv
+                                                       1D      5D
+    Ann. alpha                                      0.060   0.060
+    beta                                            0.045   0.080
+    Mean Period Wise Return Top Quantile (bps)     18.317  21.611
+    Mean Period Wise Return Bottom Quantile (bps)  20.369  16.795
+    Mean Period Wise Spread (bps)                  -2.052   4.755
+
+    :param alpha_beta: 用N天X=50只股票的因子平均值，Y=50只股票按照因子值加权平均的收益率，回归出来的1个Alpha值（年化了）和Beta值
+    :param mean_ret_quantile:
+    :param mean_ret_spread_quantile:
+    :param factor_name:
+    :return:
+    """
+
     returns_table = pd.DataFrame()
     returns_table = returns_table.append(alpha_beta)
     returns_table.loc["Mean Period Wise Return Top Quantile (bps)"] = \

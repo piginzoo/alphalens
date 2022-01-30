@@ -238,13 +238,12 @@ def create_returns_tear_sheet(
     by_group : bool
         If True, display graphs separately for each group.
     """
-    # 名字具有迷惑性，可不是计算因子的收益率，而是因子作用下的资产的收益率
-    # 这个名字具备迷惑性，不是因子的收益率，而是股票的收益率计算
+    # 把每一天，每支股票的收益率按因子权重相加，得到这一天的因子收益率
     factor_returns = perf.factor_returns(
         factor_data, long_short, group_neutral
     )
 
-    # 这个很重要，是按照分组quantile，来算每组的收益率
+    # 这个很重要，是按照分组quantile，来算每组的平均收益率
     # mean_return_by_quantile -> 分组后的某组的收益的均值
     mean_quant_ret, std_quantile = perf.mean_return_by_quantile(
         factor_data,
@@ -253,7 +252,9 @@ def create_returns_tear_sheet(
         group_adjust=group_neutral,  # 搞不搞行业中性化
     )
 
-    # ??? 感觉是算累计收益率似的？没太明白
+    import pdb;pdb.set_trace()
+
+    # 把分组的累计收益率，日均化
     mean_quant_rateret = mean_quant_ret.apply(
         utils.rate_of_return, axis=0, base_period=mean_quant_ret.columns[0]
     )
@@ -315,16 +316,22 @@ def create_returns_tear_sheet(
     返回：
                               1D        5D
             Ann. alpha  0.059765  0.060024
-            beta        0.044697  0.079839    
+            beta        0.044697  0.079839
+            
+    这个算出来的是，1个数，1个alpha和1个beta，
+    它是x=每天因子的值，y=资产的平均收益率（50只股票的平均的）    
     """
-    import pdb;pdb.set_trace()
     alpha_beta = perf.factor_alpha_beta(
-        factor_data,
-        factor_returns,
+        factor_data, # 这个是因子值，每天的50个股票对应的因子值，取个平均
+        factor_returns, #
         long_short, # 默认是True
         group_neutral # 默认是false
     )
 
+    """
+    这个是算最大的quantile分组和最小的quantile分组之间的收益差，
+    用的是日均收益率
+    """
     mean_ret_spread_quant, std_spread_quant = perf.compute_mean_returns_spread(
         mean_quant_rateret_bydate,
         factor_data["factor_quantile"].max(),
@@ -337,7 +344,10 @@ def create_returns_tear_sheet(
     gf = GridFigure(rows=vertical_sections, cols=1)
 
     plotting.plot_returns_table(
-        alpha_beta, mean_quant_rateret, mean_ret_spread_quant,factor_name
+        alpha_beta,
+        mean_quant_rateret,
+        mean_ret_spread_quant,
+        factor_name
     )
 
     plotting.plot_quantile_returns_bar(
