@@ -26,9 +26,9 @@ from . import plotting
 from . import utils
 
 
-def plot_image(no=None, factor_name=None):
+def plot_image(no=None, factor_name=None, dir="debug/factors"):
     """
-    plot各类因子的分析图
+    plot各类因子的分析图,如果因子名是 "factor.sub_factor"，那么就在创建一个sub_factor子目录
     :param no:
     :param factor_name:
     :return:
@@ -39,8 +39,15 @@ def plot_image(no=None, factor_name=None):
 
     if not factor_name: factor_name = 'Unkown'
 
-    factor_dir = "debug/{}".format(factor_name)
+    # 例如 turnover.1m_turnover => debug/factors/turnover/1m_turnover
+    if "." in factor_name:
+        sub_factor_dir = "/".join(factor_name.split("."))
+        factor_dir = "{}/{}".format(dir,sub_factor_dir)
+    else:
+        factor_dir = "{}/{}".format(dir,factor_name)
+
     if not os.path.exists(factor_dir): os.makedirs(factor_dir)
+
     if no:
         file_name = os.path.join(factor_dir, "{}_{}.jpg".format(caller_name, no))
         plt.savefig(file_name)
@@ -231,25 +238,44 @@ def create_returns_tear_sheet(
     by_group : bool
         If True, display graphs separately for each group.
     """
-    # 名字具有迷惑性，可不是计算因子的收益率，而是因子作用下的资产的收益率
-    # 这个名字具备迷惑性，不是因子的收益率，而是股票的收益率计算
+    # 把每一天，每支股票的收益率按因子权重相加，得到这一天的因子收益率
     factor_returns = perf.factor_returns(
         factor_data, long_short, group_neutral
     )
 
-    # 这个很重要，是按照分组quantile，来算每组的收益率
+    # 这个很重要，是按照分组quantile，来算每组的平均收益率
+    # mean_return_by_quantile -> 分组后的某组的收益的均值
     mean_quant_ret, std_quantile = perf.mean_return_by_quantile(
         factor_data,
         by_group=False,  # group其实就是行业
         demeaned=long_short,  # 多空，其实，就是减不减均值
         group_adjust=group_neutral,  # 搞不搞行业中性化
     )
+    """
+    计算完，得到每组的平均收益率，是把日子已经平均了，没有日期了
+    (Pdb) pp mean_quant_ret
+                           1D        5D
+    factor_quantile
+    1.0              0.002037  0.008426
+    2.0             -0.001470 -0.009757
+    3.0             -0.001558 -0.001937    
+    """
 
-    # ??? 感觉是算累计收益率似的？没太明白
+    # 把分组的累计收益率，日均化
     mean_quant_rateret = mean_quant_ret.apply(
         utils.rate_of_return, axis=0, base_period=mean_quant_ret.columns[0]
     )
+    """
+    (Pdb) pp mean_quant_rateret
+                           1D        5D
+    factor_quantile
+    1.0              0.002037  0.001680 <--- 看，1天的相同，而5D的变小了，好理解把
+    2.0             -0.001470 -0.001959
+    3.0             -0.001558 -0.000388    
+    """
 
+
+    # mean_return_by_quantile -> 分组后的某组的收益的均值，但是，是按照每天来算的，和249行那个不用，那个是总的收益率
     mean_quant_ret_bydate, std_quant_daily = perf.mean_return_by_quantile(
         factor_data,
         by_date=True,
@@ -257,22 +283,100 @@ def create_returns_tear_sheet(
         demeaned=long_short,
         group_adjust=group_neutral,
     )
+    """
+    (Pdb) pp mean_quant_ret_bydate
+                                      1D        5D
+    factor_quantile date
+    1.0             2020-01-02 -0.002033  0.009178
+                    2020-01-03  0.007926  0.023622
+                    2020-01-06  0.021653  0.018836
+    ...             .....
+    是，每一个quantile分组内，每一天，50只股票对应的对应的平均收益，mean，这词就是这个意思    
+    """
 
-    #
+
+    """
+    # utils.rate_of_return是把不同间隔的收益还原到1天的收益里
+    举个例子把，我用5D的收益率调仓了，现在我问你，这5天里，每天的收益率是多少？
+    你可能会觉得，我是知道每天的股票的收益啊？
+    别糊涂，现在是我是算的一个组合的，即用5天收益率排序得到的某组的组合投资的，日均收益率
+    """
     mean_quant_rateret_bydate = mean_quant_ret_bydate.apply(
         utils.rate_of_return,
         axis=0,
         base_period=mean_quant_ret_bydate.columns[0],
     )
+    """
+    (Pdb) pp mean_quant_rateret_bydate
+                                      1D            5D
+    factor_quantile date
+    1.0             2020-01-02 -0.002033  1.828945e-03
+                    2020-01-03  0.007926  4.680298e-03
+                    2020-01-06  0.021653  3.739118e-03
+                    2020-01-07  0.002043  7.993446e-03
+                    2020-01-08 -0.004807  8.661800e-04    
+    看，是到每一个交易日了，1D的跟前面的mean相同，但是5D的明显小了，
+    前面那个叫"mean_quant_ret_bydate"，是说每一天，50只股票的平均收益率，但是是对5D，10D来说的，
+    这个呢？是把5D，10D的再细化到1天。
+    举个例子把：
+    看前的第一行的最后1个：0.009178，是quantile=1，period=5D，他的意思是说，2020-01-02日到后面5天也就是1.2~1.7号的收益率是0.009178，
+    那么我现在问你，1.2~1.7，每天的收益率是多少呢？答案就是上述的第一行的最后一个：1.828945e-03：quantile=1,date=2020-1-2
+    """
 
+
+
+    # 同上，不过这次算的方差
     compstd_quant_daily = std_quant_daily.apply(
-        utils.std_conversion, axis=0, base_period=std_quant_daily.columns[0]
+        utils.std_conversion,
+        axis=0,
+        base_period=std_quant_daily.columns[0]
     )
 
+    """
+    计算因子和收益率的回归，干嘛要做这个呢？算因子收益率啊。
+    R_股票i = alhpa_股票i  + beta_股票i * 当期因子收益率 + 残差 # beta_股票i就是当期因子值 
+    R_i = alpha_i + factor_i * factor_return + e_i
+    注意啊，我们的前面得到的因子，所谓的因子，其实是因子暴露，
+    而，我们回归出来的，才是因子收益率，
+    它是一个当期的1个值，而不是每个股票对应1个值，
+    每个股票对应有一个值的东东是因子暴露（简称因子，我们最开始准备好的）
+    
+    看下面的数据演示，我们可以理解，
+    --------
+    factor_data:
+                                        1D        5D        factor  factor_quantile
+            date       asset
+            2020-01-02 600160.SH -0.008186 -0.021829  9.992007e-16              4.0
+                       600161.SH -0.000359 -0.003948 -9.901982e-02              1.0
+            ...                        ...       ...           ...              ...
+            2020-08-25 600195.SH  0.010417  0.095943 -1.229528e+00              1.0
+                       600201.SH -0.029756  0.007439  1.229528e+00              5.0
+            ...                        ...       ...           ...              ...
+    factor_returns
+                              1D        5D
+            date
+            2020-01-02 -0.005937 -0.004048
+            2020-01-03 -0.007303  0.000270
+            2020-01-06 -0.014044 -0.003806
+    返回：
+                              1D        5D
+            Ann. alpha  0.059765  0.060024
+            beta        0.044697  0.079839
+            
+    这个算出来的是，1个数，1个alpha和1个beta，
+    它是x=每天因子的值，y=资产的平均收益率（50只股票的平均的）    
+    """
     alpha_beta = perf.factor_alpha_beta(
-        factor_data, factor_returns, long_short, group_neutral
+        factor_data, # 这个是因子值，每天的50个股票对应的因子值，取个平均
+        factor_returns, # 这个是因子收益，这个收益怎么来的呢？是对每一天，计算，这50只股票按照因子值加权平均的收益率
+        long_short, # 默认是True
+        group_neutral # 默认是false
     )
 
+    """
+    这个是算最大的quantile分组和最小的quantile分组之间的收益差，
+    用的是日均收益率
+    """
     mean_ret_spread_quant, std_spread_quant = perf.compute_mean_returns_spread(
         mean_quant_rateret_bydate,
         factor_data["factor_quantile"].max(),
@@ -285,7 +389,10 @@ def create_returns_tear_sheet(
     gf = GridFigure(rows=vertical_sections, cols=1)
 
     plotting.plot_returns_table(
-        alpha_beta, mean_quant_rateret, mean_ret_spread_quant,factor_name
+        alpha_beta,
+        mean_quant_rateret,
+        mean_ret_spread_quant,
+        factor_name
     )
 
     plotting.plot_quantile_returns_bar(

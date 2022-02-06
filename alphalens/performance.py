@@ -13,15 +13,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pandas as pd
-import numpy as np
 import warnings
 
 import empyrical as ep
+import numpy as np
+import pandas as pd
 from pandas.tseries.offsets import BDay
 from scipy import stats
 from statsmodels.regression.linear_model import OLS
 from statsmodels.tools.tools import add_constant
+
 from . import utils
 
 
@@ -128,7 +129,7 @@ def mean_information_coefficient(factor_data,
 
 def factor_weights(factor_data,
                    demeaned=True,  # demean 处理，也称为中心化（Zero-centered 或者 Mean-subtraction）。
-                   group_adjust=False, # 这里的group，在我看来就是行业
+                   group_adjust=False,  # 这里的group，在我看来就是行业
                    equal_weight=False):
     """
     Computes asset weights by factor values and dividing by the sum of their
@@ -211,9 +212,14 @@ def factor_returns(factor_data,
                    equal_weight=False,
                    by_asset=False):
     """
-    名字具有迷惑性，可不是计算因子的收益率，而是因子作用下的资产的收益率
     Computes period wise returns for portfolio weighted by factor values.
 
+    计算因子收益率，其实，是股票收益率的按照因子权重相加，就算成了因子的收益率。
+
+    距离说明，比如我有A，B，C3只股票，某一天，我们3的因子值是1，2，3，我们3的股票收益率是0.1,0.2,0.3，
+    好，那么算出来的这一天的因子收益率为： R = (1/6)*0.1 + (2/6)*.0.2 + (3/6)*0.3
+
+    这里要把所有的日子，每天的，都计算一遍。这个就是因子收益率。
     Parameters
     ----------
     factor_data : pd.DataFrame - MultiIndex
@@ -313,9 +319,10 @@ def factor_alpha_beta(factor_data,
         returns = \
             factor_returns(factor_data, demeaned, group_adjust, equal_weight)
 
+    # 按照日期分组，得到每个日期有50只股票的因子，然后，求了一个**50只股票这一天的因子平均值**
     universe_ret = factor_data.groupby(level='date')[
         utils.get_forward_returns_columns(factor_data.columns)] \
-        .mean().loc[returns.index]
+        .mean().loc[returns.index]  # mean <--- 看到了把，取平均了
 
     if isinstance(returns, pd.Series):
         returns.name = universe_ret.columns.values[0]
@@ -326,7 +333,37 @@ def factor_alpha_beta(factor_data,
         x = universe_ret[period].values
         y = returns[period].values
         x = add_constant(x)
-
+        """
+        这个应该是一个横截面回归，即某一天（不准确，是某个调仓期）
+        y：下期的因子收益率，啥叫因子收益率？前面算的，就是，对应股票的收益率，按照因子值计算的权重相加到一起，把这东东看成了因子收益率
+        x：某个调仓期对应的因子值
+        注意，这里因为有多个quantile，实际上是一个quantile一个quantile分着算的 <-- 这句话是胡说八道！自我检讨一下
+        
+        这里算的其实是，50只股票，每天，因子们的平均值：
+            universe_ret = factor_data.groupby(level='date')[
+                utils.get_forward_returns_columns(factor_data.columns)] \
+                .mean().loc[returns.index]
+        得到的结果：即，X
+        (Pdb) pp universe_ret
+                                  1D        5D
+                date
+                2020-01-02 -0.002749  0.008513
+                2020-01-03  0.001146  0.004509
+                2020-01-06  0.010194  0.016738
+                ...
+        这个是每天，50只股票的平均收益：即，Y
+         (Pdb) pp returns # 这个实际上是因子的某一天的50只股票的因子的平均值了
+                                  1D        5D
+                date
+                2020-01-02 -0.005937 -0.004048
+                2020-01-03 -0.007303  0.000270
+                2020-01-06 -0.014044 -0.003806
+                
+        所以，回归出来的是：
+        从开始到现在，一共多少天，就有多少个（x，y），
+        然后用这些天的(x,y)共同回归，得到alpha，和 beta，这个alpha还调整成了年化的了
+        因子值和收益率的回归，这算是个啥？？？我真的没想通。                
+        """
         reg_fit = OLS(y, x).fit()
         try:
             alpha, beta = reg_fit.params
@@ -334,8 +371,9 @@ def factor_alpha_beta(factor_data,
             alpha_beta.loc['Ann. alpha', period] = np.nan
             alpha_beta.loc['beta', period] = np.nan
         else:
+            # 靠！调整成年化
             freq_adjust = pd.Timedelta('252Days') / pd.Timedelta(period)
-
+            # Ann. 指的就是年化
             alpha_beta.loc['Ann. alpha', period] = \
                 (1 + alpha) ** freq_adjust - 1
             alpha_beta.loc['beta', period] = beta
@@ -472,6 +510,8 @@ def mean_return_by_quantile(factor_data,
     Computes mean returns for factor quantiles across
     provided forward returns columns.
 
+    计算平均收益率，按照分组来，
+
     Parameters
     ----------
     factor_data : pd.DataFrame - MultiIndex
@@ -510,6 +550,18 @@ def mean_return_by_quantile(factor_data,
     if by_group:
         grouper.append('group')
 
+    """
+    看，用的计算的是factor_data的1D，5D，10D列，
+    对这些列求'mean', 'std', 'count'
+    这些列，是每个1D，5D，10D，这些股票的收益率
+    (Pdb) pp factor_data
+                                1D        5D        factor  factor_quantile
+    date       asset
+    2020-01-02 600160.SH -0.008186 -0.021829  9.992007e-16              4.0
+               600161.SH -0.000359 -0.003948 -9.901982e-02              1.0
+               600166.SH  0.023809  0.023809 -7.771561e-16              2.0
+               600167.SH -0.008430 -0.000767  1.110223e-16              3.0    
+    """
     group_stats = factor_data.groupby(grouper)[
         utils.get_forward_returns_columns(factor_data.columns)] \
         .agg(['mean', 'std', 'count'])
@@ -540,6 +592,12 @@ def compute_mean_returns_spread(mean_returns,
     two quantiles. Optionally, computes the standard error
     of this difference.
 
+    调用的时候的参数：
+    mean_quant_rateret_bydate, <-- mean return 用的是到日均的
+    factor_data["factor_quantile"].max(), <-- 看，是最大和最小的两个quantile的
+    factor_data["factor_quantile"].min(),
+    std_err=compstd_quant_daily,
+
     Parameters
     ----------
     mean_returns : pd.DataFrame
@@ -565,9 +623,14 @@ def compute_mean_returns_spread(mean_returns,
         if std_err is None, this will be None
     """
 
-    mean_return_difference = mean_returns.xs(upper_quant,
-                                             level='factor_quantile') \
-                             - mean_returns.xs(lower_quant, level='factor_quantile')
+    """
+    # xs函数：返回Series/DataFrame的横截面(cross-section)：参考：https://www.cjavapy.com/article/264/
+    # upper_quant: factor_data["factor_quantile"].max()
+    # lower_quant: factor_data["factor_quantile"].min()
+    xs的结果，就是，只剩下那个quantile分组的数据，这里就是只剩下1组和10组的数据，然后相减
+    """
+    mean_return_difference = mean_returns.xs(upper_quant,level='factor_quantile') \
+                           - mean_returns.xs(lower_quant, level='factor_quantile')
 
     if std_err is None:
         joint_std_err = None

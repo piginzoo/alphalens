@@ -98,8 +98,16 @@ def quantize_factor(factor_data,
         containing the values for a single alpha factor, forward returns for
         each period, the factor quantile/bin that factor value belongs to, and
         (optionally) the group the asset belongs to.
-
         - See full explanation in utils.get_clean_factor_and_forward_returns
+            -----------------------------------------------------
+                date    |    asset   |  factor |  forward returns
+            -----------------------------------------------------
+                        |   AAPL     |   0.5   |  0.12
+                        -----------------------------------------
+                        |   BA       |  -1.1   |  0.02
+                        -----------------------------------------
+            2014-01-01  |   CMG      |   1.7   |  0.031
+                        -----------------------------------------
 
     quantiles : int or sequence[float]
         Number of equal-sized quantile buckets to use in factor bucketing.
@@ -125,6 +133,15 @@ def quantize_factor(factor_data,
     -------
     factor_quantile : pd.Series
         Factor quantiles indexed by date and asset.
+            -------------------------------------------
+                date    |    asset   |  factor_quantile
+            -------------------------------------------
+                        |   AAPL     |   1
+                        -------------------------------
+                        |   BA       |   1
+                        -------------------------------
+            2014-01-01  |   CMG      |   2
+                        -------------------------------
     """
     if not ((quantiles is not None and bins is None) or
             (quantiles is None and bins is not None)):
@@ -355,9 +372,6 @@ def compute_forward_returns(factor,
 
     # now set the columns correctly
     df = df[column_list]
-
-    # print("df.index.levels[0].freq:",df.index.levels[0].freq)
-    # print("freq",freq)
     df.index.levels[0].freq = freq
     # exit()
     df.index.set_names(['date', 'asset'], inplace=True)
@@ -557,6 +571,7 @@ def get_clean_factor(factor,
         Alternately sequence of quantiles, allowing non-equal-sized buckets
         e.g. [0, .10, .5, .90, 1.] or [.05, .5, .95]
         Only one of 'quantiles' or 'bins' can be not-None
+    分箱个数
     bins : int or sequence[float]
         Number of equal-width (valuewise) bins to use in factor bucketing.
         Alternately sequence of bin edges allowing for non-uniform bin width
@@ -564,10 +579,12 @@ def get_clean_factor(factor,
         Chooses the buckets to be evenly spaced according to the values
         themselves. Useful when the factor contains discrete values.
         Only one of 'quantiles' or 'bins' can be not-None
+    行业的代码
     groupby_labels : dict
         A dictionary keyed by group code with values corresponding
         to the display name for each group.
-    max_loss : float, optional
+    最多可以扔掉百分之多少无效的数据
+    max_loss : float, optional，默认max_loss=0.35
         Maximum percentage (0.00 to 1.00) of factor data dropping allowed,
         computed comparing the number of items in the input factor index and
         the number of items in the output DataFrame index.
@@ -652,9 +669,13 @@ def get_clean_factor(factor,
 
     merged_data = merged_data.dropna()
 
+    # 保留的条数
     fwdret_amount = float(len(merged_data.index))
 
     no_raise = False if max_loss == 0 else True
+    
+    # 传入factor+forward_returns，返回每只股票每期的分箱的排名
+    # 每行是 日期+股票，多了一列"factor_quantile"，是他在当期的排名分箱号
     quantile_data = quantize_factor(
         merged_data,
         quantiles,
@@ -670,21 +691,25 @@ def get_clean_factor(factor,
 
     binning_amount = float(len(merged_data.index))
 
+    # 丢弃的百分比
     tot_loss = (initial_amount - binning_amount) / initial_amount
+    # 保留的百分比
     fwdret_loss = (initial_amount - fwdret_amount) / initial_amount
+    # bin分箱时候，丢弃的百分比
     bin_loss = tot_loss - fwdret_loss
 
-    print("Dropped %.1f%% entries from factor data: %.1f%% in forward "
-          "returns computation and %.1f%% in binning phase "
-          "(set max_loss=0 to see potentially suppressed Exceptions)." %
+    # print("Dropped %.1f%% entries from factor data: %.1f%% in forward "
+    #       "returns computation and %.1f%% in binning phase "
+    #       "(set max_loss=0 to see potentially suppressed Exceptions)." %
+    #       (tot_loss * 100, fwdret_loss * 100, bin_loss * 100))
+
+    print("在分箱阶段,丢弃了 %.1f%% 的无效因子：分箱前丢弃%.1f%% + 分箱时丢弃%.1f%%" %
           (tot_loss * 100, fwdret_loss * 100, bin_loss * 100))
 
+    # 如果丢掉的太多，就不玩了
     if tot_loss > max_loss:
-        message = ("max_loss (%.1f%%) exceeded %.1f%%, consider increasing it."
-                   % (max_loss * 100, tot_loss * 100))
+        message = ("丢掉了%.1f%%的无效数据，超过可容忍的%.1f%%最大阈值" % (tot_loss * 100, max_loss * 100))
         raise MaxLossExceededError(message)
-    else:
-        print("max_loss is %.1f%%, not exceeded: OK!" % (max_loss * 100))
 
     return merged_data
 
@@ -883,6 +908,10 @@ def rate_of_return(period_ret, base_period):
     returns would have every 'one_period_len' if they had grown at a steady
     rate
 
+    我理解这个是把一段时间的收益率，还原到每一天去，比如我知道了5天的收益率，我来问你每天的收益率
+      --> period_ret.add(1).pow(conversion_factor).sub(1)
+      --> period_ret.add(1).pow(1/5).sub(1)
+
     Parameters
     ----------
     period_ret: pd.DataFrame
@@ -899,9 +928,22 @@ def rate_of_return(period_ret, base_period):
         DataFrame in same format as input but with 'one_period_len' rate of
         returns values.
     """
-    period_len = period_ret.name
-    conversion_factor = (pd.Timedelta(base_period) /
-                         pd.Timedelta(period_len))
+    # period_ret 就是你回测期的总的回报率
+    period_len = period_ret.name  # periold_len pdb值：'1D', '5D'
+    conversion_factor = (pd.Timedelta(base_period) / # base_period就是你的回测期，用的是column的name，即 '1D','5D'
+                         pd.Timedelta(period_len))  #
+    """
+    (Pdb) pp period_ret, period_len, base_period
+        (factor_quantile
+        1.0    0.008426
+        2.0   -0.009757
+        3.0   -0.001937
+        4.0   -0.006727
+        5.0    0.010852
+        Name: 5D, dtype: float64,
+         '5D',
+         '1D')
+    """
     return period_ret.add(1).pow(conversion_factor).sub(1)
 
 
