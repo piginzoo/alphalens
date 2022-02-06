@@ -356,7 +356,10 @@ def compute_forward_returns(factor,
     # now set the columns correctly
     df = df[column_list]
 
+    # print("df.index.levels[0].freq:",df.index.levels[0].freq)
+    # print("freq",freq)
     df.index.levels[0].freq = freq
+    # exit()
     df.index.set_names(['date', 'asset'], inplace=True)
 
     return df
@@ -400,7 +403,7 @@ def demean_forward_returns(factor_data, grouper=None):
     Convert forward returns to returns relative to mean
     period wise all-universe or group returns.
     group-wise normalization incorporates the assumption of a
-    group neutral portfolio constraint and thus allows allows the
+    group neutral portfolio constraint and thus allows the
     factor to be evaluated across groups.
 
     For example, if AAPL 5 period return is 0.1% and mean 5 period
